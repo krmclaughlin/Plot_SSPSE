@@ -1,3 +1,5 @@
+library(igraph)
+
 # Simplified version of Reingold-Tilford Plot that places recruitment chains horizontally with seeds all at the same level
 # Has the option to color points based on a provided column in the data
 
