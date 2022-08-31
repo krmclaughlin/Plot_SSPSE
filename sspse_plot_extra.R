@@ -245,7 +245,7 @@ if (fit$visibility == FALSE) {
     visdist <- ggplot(df.visdist, aes(x=Visibility, y=Probability)) +
       geom_bar(stat="identity") +
       theme_bw() +
-      labs(title="Visibility Distribution")
+      labs(title="Visibility distribution")
     plist <- c(plist, list(visdist))
   }
   
@@ -278,7 +278,7 @@ if (fit$visibility == FALSE) {
     visdistoverlay <- ggplot(df.visdist2, aes(x=Visibility, y=Probability, fill=Method)) +
       geom_bar(stat="identity", position="identity", width=rep(c(0.9,0.4),each=Kmax)) +
       theme_bw() +
-      labs(title="Visibility Distribution with Network Sizes Overlaid") +
+      labs(title="Visibility distribution with network sizes overlaid") +
       scale_fill_manual(values=c("red", "gray35")) +
       annotate(geom = 'text', label = paste("Observed network size > K:\n", per.extreme, "%", sep=""), x = Kmax, y = max(df.visdist2$Probability), color="red", size=4, hjust=1, vjust=1)
     plist <- c(plist, list(visdistoverlay))
