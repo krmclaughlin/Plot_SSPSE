@@ -2,6 +2,8 @@ library(sspse)
 library(ggplot2)
 library(igraph)
 library(ggsci)
+library(ggpubr)
+library(tidyr)
 
 # Simplified version of Reingold-Tilford Plot that places recruitment chains horizontally with seeds all at the same level
 # Has the option to color points based on a provided column in the data
@@ -188,4 +190,131 @@ post.plot <- function(sspse.obj, xmax=NULL, band.post = 1, ptitle=NULL){
   #theme(plot.title = element_text(hjust = 0.5))
   
   suppressWarnings(print(p.plot))
+}
+
+
+# ggplot version of visibility diagnostic plots
+# Cre: Katherine McLaughlin
+
+## sspse.obj = name of fitted sspse object
+## ptitle = plot title
+## type = vector containing one or more of "meanvis", "sdvis", "visdist", "visdistoverlay", "visall", "pvdist"
+
+## EXAMPLE
+# library(sspse)
+# data(fauxmadrona)
+# fitv <- posteriorsize(fauxmadrona, median.prior.size=1000, visibility=TRUE)
+# visplots(fitv)
+
+visplots <- function(fit, ptitle="Visibility Plots", type=c("visdistoverlay", "visall")) {
+  
+if (fit$visibility == FALSE) {
+  stop("Error: visibility plots can only be made with a visibility sspse object.")
+}
+
+  if (length(type) < length(match(type, c("meanvis", "sdvis", "visdist", "visdistoverlay", "visall", "pvdist")))) {
+    stop("Error: invalid plot type specified")
+  }
+  
+  plist <- list()
+  
+  out <- data.frame(fit$sample)
+  
+  # Visibility mean
+  if ("meanvis" %in% type) {
+    meanvis <- ggplot(out, aes(x=mu)) + 
+      geom_density(fill="black", alpha=0.5) +
+      theme_bw() +
+      labs(x="Mean visibility", title="Posterior for mean visibility")
+    plist <- c(plist, list(meanvis))
+  }
+  
+  # Visibility standard deviation
+  if ("sdvis" %in% type) {
+    sdvis <- ggplot(out, aes(x=sigma)) + 
+      geom_density(fill="black", alpha=0.5) +
+      theme_bw() +
+      labs(x="s.d. visibility", title="Posterior for s.d. of the visibility")
+    plist <- c(plist, list(sdvis))
+  }
+  
+  # Visibility distribution (plain)
+  df.visdist <- data.frame(Visibility=seq_along(fit$predictive.visibility),
+                           Probability=fit$predictive.visibility)
+  
+  if ("visdist" %in% type) {
+    visdist <- ggplot(df.visdist, aes(x=Visibility, y=Probability)) +
+      geom_bar(stat="identity") +
+      theme_bw() +
+      labs(title="Visibility Distribution")
+    plist <- c(plist, list(visdist))
+  }
+  
+  
+  # Visibility distribution with network sizes
+  network.size <- as.numeric(fit$data[[attr(fit$data,"network.size.variable")]])
+  
+  # Augment the reported network size by the number of recruits and the recruiter (if not seed).
+  # If network size is less than #recruits+recruiter, replace
+  nr <- RDS::get.number.of.recruits(fit$data)
+  is.seed <- (RDS::get.rid(fit$data)=="seed")
+  network.size <- pmax(network.size,nr+!is.seed)
+  
+  
+  remvalues <- is.na(network.size)
+  if (sum(remvalues) > 0) {print("There is at least one missing network size.")}
+  
+  Kmax <- max(seq_along(fit$predictive.visibility))
+  ns.prob <- tabulate(network.size[!remvalues],nbins=Kmax)
+  ns.prob1 <- ns.prob/length(network.size)
+  
+  df.visdist$ns.prob <- ns.prob1 
+  df.visdist2 <- df.visdist %>% gather("Probability", "ns.prob", key=Method, value=Probability)
+  df.visdist2$Method <- ifelse(df.visdist2$Method=="Probability", "Visibility", "Network Size")
+  
+  n.extreme <- length(network.size) - sum(ns.prob)
+  per.extreme <- round(n.extreme/length(network.size), digits=3)*100
+  
+  if ("visdistoverlay" %in% type) {
+    visdistoverlay <- ggplot(df.visdist2, aes(x=Visibility, y=Probability, fill=Method)) +
+      geom_bar(stat="identity", position="identity", width=rep(c(0.9,0.4),each=Kmax)) +
+      theme_bw() +
+      labs(title="Visibility Distribution with Network Sizes Overlaid") +
+      scale_fill_manual(values=c("red", "gray35")) +
+      annotate(geom = 'text', label = paste("Observed network size > K:\n", per.extreme, "%", sep=""), x = Kmax, y = max(df.visdist2$Probability), color="red", size=4, hjust=1, vjust=1)
+    plist <- c(plist, list(visdistoverlay))
+  }
+  
+  # Visibility vs network size by person
+  df.visall <- data.frame(Visibility=fit$visibilities, Network=network.size)
+  qs <- apply(fit$vsample,2,stats::quantile,probs=c(0.25,0.75))
+  df.visall$q1 <- qs[1,]
+  df.visall$q3 <- qs[2,]
+  
+  if ("visall" %in% type) {
+    visall <- ggplot(df.visall, aes(x=Network, y=Visibility)) +
+      theme_bw() +
+      geom_errorbar(aes(ymin=q1, ymax=q3), width=2, alpha=0.4) +
+      geom_count(color="black", fill="red", shape=21) +
+      labs(title="Estimated visibilities for each respondent", x="Network Size (Augmented)")
+    plist <- c(plist, list(visall))
+  }
+  
+  # Visibility dist for random participants
+  if ("pvdist" %in% type) {
+    vsamp <- data.frame(fit$vsample)
+    vsamp2 <- vsamp %>% gather(sample(names(vsamp), 20), key="ID", value="Visibility")
+    
+    pvdist <- ggplot(vsamp2, aes(x=Visibility, group=ID)) + 
+      geom_density(fill="black", alpha=0.08, bw=0.5) +
+      theme_bw() +
+      labs(title="Visibility distributions for 20 randomly selected participants", y="Density")
+    plist <- c(plist, list(pvdist))
+  }
+  
+  nc <- ifelse(length(plist) >= 2, 2, 1)
+  nr <- ceiling(length(plist)/2)
+  
+  do.call(ggarrange, c(plist, ncol=nc, nrow=nr))
+  
 }
