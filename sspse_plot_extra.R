@@ -197,16 +197,15 @@ post.plot <- function(sspse.obj, xmax=NULL, band.post = 1, ptitle=NULL){
 # Cre: Katherine McLaughlin
 
 ## sspse.obj = name of fitted sspse object
-## ptitle = plot title
 ## type = vector containing one or more of "meanvis", "sdvis", "visdist", "visdistoverlay", "visall", "pvdist"
 
 ## EXAMPLE
 # library(sspse)
 # data(fauxmadrona)
 # fitv <- posteriorsize(fauxmadrona, median.prior.size=1000, visibility=TRUE)
-# visplots(fitv)
+# visplots(fitv, type=c("visdistoverlay", "visall"))
 
-visplots <- function(fit, ptitle="Visibility Plots", type=c("visdistoverlay", "visall")) {
+visplots <- function(fit, type=c("visdistoverlay", "visall")) {
   
 if (fit$visibility == FALSE) {
   stop("Error: visibility plots can only be made with a visibility sspse object.")
